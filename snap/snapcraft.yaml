@@ -1,0 +1,45 @@
+name: ubuntu-package-status
+version: '0.0.1'
+summary: Helpful utility to fetch package version data for specified packages in the ubuntu archive.
+description: |
+  Helpful utility to fetch package version data for specified packages in the ubuntu archive.
+
+  Usage:
+
+  ubuntu-package-status --help # to see all available options
+
+grade: stable
+confinement: strict
+
+apps:
+  ubuntu-watch-packages:
+    command: wrapper
+    plugs:
+      - network
+      - desktop
+      - home
+
+parts:
+  ubuntu-watch-packages-wrapper:
+    plugin: dump
+    source: snap/local
+    prepare: |
+      chmod +x wrapper
+    stage:
+      - usr/bin/wrapper
+    organize:
+      wrapper: usr/bin/wrapper
+
+  ubuntu-watch-packages:
+    plugin: python
+    python-version: python3
+    requirements: snap-virtualenv-requirements.txt
+    source: .
+    stage-packages:
+      - devscripts
+      - apt
+      - python3-launchpadlib
+      - distro-info
+      - python3-distro-info
+    build-packages:
+      - libapt-pkg-dev

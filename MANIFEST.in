@@ -1,0 +1,7 @@
+graft src
+graft src/ubuntu-package-status
+
+include README.md
+include MANIFEST.in
+
+global-exclude *.py[cod] __pycache__ *.so *.dylib .gitignore src/ubuntu_package_status/config.yaml

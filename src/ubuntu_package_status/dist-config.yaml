@@ -1,0 +1,10 @@
+ubuntu-versions:
+  trusty:
+    packages:
+     - linux
+  xenial:
+    packages:
+     - linux
+  bionic:
+    packages:
+     - linux

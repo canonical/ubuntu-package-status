@@ -1,0 +1,6 @@
+babel
+click
+pyyaml
+readchar
+jinja2
+humanize

@@ -4,3 +4,4 @@
 /packagestats.csv
 /packagestats.db
 /snap/.snapcraft/state
+*.snap

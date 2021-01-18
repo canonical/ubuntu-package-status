@@ -33,7 +33,7 @@ parts:
   ubuntu-package-status:
     plugin: python
     python-version: python3
-    requirements: requirements.txt
+    requirements: src/requirements.txt
     source: .
     stage-packages:
       - python3-launchpadlib

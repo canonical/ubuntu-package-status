@@ -7,11 +7,9 @@ import os
 import sys
 import yaml
 
-import apt_pkg
 import click
 
 from pkg_resources import resource_filename
-
 
 from babel.dates import format_datetime
 from launchpadlib.launchpad import Launchpad
@@ -21,9 +19,6 @@ from launchpadlib.launchpad import Launchpad
 launchpad = Launchpad.login_anonymously('ubuntu-package-status', 'production', version='devel')
 ubuntu = launchpad.distributions["ubuntu"]
 ubuntu_archive = ubuntu.main_archive
-
-apt_pkg.config.set('RootDir', os.environ.get('SNAP', ''))
-apt_pkg.init_system()
 
 # Which archive pockets are checked
 ARCHIVE_POCKETS = ['Release', 'Proposed', 'Security', 'Updates']

@@ -12,7 +12,7 @@ grade: stable
 confinement: strict
 
 apps:
-  ubuntu-watch-packages:
+  ubuntu-package-status:
     command: wrapper
     plugs:
       - network
@@ -20,7 +20,7 @@ apps:
       - home
 
 parts:
-  ubuntu-watch-packages-wrapper:
+  ubuntu-package-status-wrapper:
     plugin: dump
     source: snap/local
     prepare: |
@@ -30,16 +30,10 @@ parts:
     organize:
       wrapper: usr/bin/wrapper
 
-  ubuntu-watch-packages:
+  ubuntu-package-status:
     plugin: python
     python-version: python3
-    requirements: snap-virtualenv-requirements.txt
+    requirements: requirements.txt
     source: .
     stage-packages:
-      - devscripts
-      - apt
       - python3-launchpadlib
-      - distro-info
-      - python3-distro-info
-    build-packages:
-      - libapt-pkg-dev

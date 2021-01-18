@@ -3,3 +3,4 @@
 /__pycache__/
 /packagestats.csv
 /packagestats.db
+/snap/.snapcraft/state

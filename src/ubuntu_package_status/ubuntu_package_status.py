@@ -72,88 +72,32 @@ def print_package_status_summary_csv(package_status):
                     ])
 
 
-def get_status_for_single_package(package, series, pocket):
+def get_status_for_single_package(package, series, pocket, package_architecture="amd64"):
     package_stats = {"full_version": None,
-                     "version": None,
                      "date_published": None,
                      "date_published_formatted": None,
-                     "link": None,
-                     "binaries": {
-                         "amd64": {
-                             "version": None,
-                             "link": None
-                         },
-                         "arm64": {
-                             "version": None,
-                             "link": None
-                         }
-                     }}
+                     }
     try:
         lp_series = ubuntu.getSeries(name_or_version=series)
-        lp_amd64_arch_series = lp_series.getDistroArchSeries(archtag='amd64')
-        lp_arm64_arch_series = lp_series.getDistroArchSeries(archtag='arm64')
-        package_published_sources = ubuntu_archive.getPublishedSources(
-                exact_match=True,
-                source_name=package,
-                pocket=pocket,
-                distro_series=lp_series,
-                status="Published",
-                order_by_date=True)
+        lp_arch_series = lp_series.getDistroArchSeries(archtag=package_architecture)
 
-        amd64_package_published_binaries = ubuntu_archive.getPublishedBinaries(
+        package_published_binaries = ubuntu_archive.getPublishedBinaries(
                 exact_match=True,
                 binary_name=package,
                 pocket=pocket,
-                distro_arch_series=lp_amd64_arch_series,
+                distro_arch_series=lp_arch_series,
                 status="Published",
                 order_by_date=True)
 
-        arm64_package_published_binaries = ubuntu_archive.getPublishedBinaries(
-                exact_match=True,
-                binary_name=package,
-                pocket=pocket,
-                distro_arch_series=lp_arm64_arch_series,
-                status="Published",
-                order_by_date=True)
+        if len(package_published_binaries) > 0:
+            package_published_binary = package_published_binaries[0]
+            binary_package_version = package_published_binary.binary_package_version
+            package_stats["full_version"] = binary_package_version
 
-        if len(amd64_package_published_binaries) > 0:
-            amd64_package_published_binary = amd64_package_published_binaries[0]
-            amd64_binary_package_version = amd64_package_published_binary.binary_package_version
-            amd64_binary_link = amd64_package_published_binary.build_link.replace('api.', '').replace('1.0/', '')
-            package_stats["binaries"]["amd64"][
-                "version"] = amd64_binary_package_version
-            package_stats["binaries"]["amd64"][
-                "link"] = amd64_binary_link
-
-        if len(arm64_package_published_binaries) > 0:
-            arm64_package_published_binary = arm64_package_published_binaries[0]
-            arm64_binary_package_version = arm64_package_published_binary.binary_package_version
-            arm64_binary_link = amd64_package_published_binary.self_link
-            package_stats["binaries"]["arm64"][
-                "version"] = arm64_binary_package_version
-            package_stats["binaries"]["arm64"][
-                "link"] = arm64_binary_link
-
-        if len(package_published_sources) > 0:
-            package_published_source = package_published_sources[0]
-
-            package_stats["link"] = package_published_source.self_link
-
-            full_version = package_published_source.source_package_version
-            version = full_version
-
-            # We're really only concerned with the version number up
-            # to the last int if it's not a ~ version
-            if "~" not in full_version:
-                last_version_dot = full_version.find('-')
-                version = full_version[0:last_version_dot]
-
-            package_stats["version"] = version
-            package_stats["full_version"] = full_version
             package_stats["date_published"] = \
-                package_published_source.date_published.isoformat()
+                package_published_binary.date_published.isoformat()
             date_published_formatted = format_datetime(
-                    package_published_source.date_published)
+                    package_published_binary.date_published)
             package_stats[
                 "date_published_formatted"] = date_published_formatted
 
@@ -168,20 +112,9 @@ def initialize_package_stats_dict(package_config):
     package_status = dict()
 
     default_package_stats = {"full_version": None,
-                             "version": None,
                              "date_published": None,
                              "date_published_formatted": None,
-                             "link": None,
-                             "binaries": {
-                                 "amd64": {
-                                     "version": None,
-                                     "link": None
-                                 },
-                                 "arm64": {
-                                     "version": None,
-                                     "link": None
-                                 }
-                             }}
+                             }
 
     default_package_versions = {'Release': default_package_stats,
                                 'Proposed': default_package_stats,
@@ -199,7 +132,7 @@ def initialize_package_stats_dict(package_config):
     return package_status
 
 
-def get_status_for_all_packages(package_config):
+def get_status_for_all_packages(package_config, package_architecture="amd64"):
     package_status = initialize_package_stats_dict(package_config)
     for ubuntu_version, packages in package_status.items():
         for package in packages.keys():
@@ -208,7 +141,8 @@ def get_status_for_all_packages(package_config):
                         ubuntu_version, pocket.lower(), package))
                 package_stats = get_status_for_single_package(package,
                                                               ubuntu_version,
-                                                              pocket)
+                                                              pocket,
+                                                              package_architecture)
                 package_status[ubuntu_version][package][pocket] = package_stats
     return package_status
 
@@ -234,10 +168,19 @@ def cli(ctx):
               help='Print example config.')
 @click.option('--output-format', type=click.Choice(['TXT', 'CSV', 'JSON']),
               default='TXT')
+@click.option('--package-architecture',
+              help='The architecture to use when querying package '
+                   'version in the archive. We use this in our rmadison query '
+                   'to query either "source" package or "amd64" package '
+                   'version. Using "amd64" will query the version of the '
+                   'kernel binary package. "source" is a valid value for '
+                   'architecture with rmadison and will query the version of '
+                   'the source package.',
+              required=True, default='amd64')
 @click.pass_context
 def ubuntu_package_status(ctx, config, logging_level, config_skeleton,
-                          output_format):
-    # type: (Dict, Text, Text, bool, Text) -> None
+                          output_format, package_architecture):
+    # type: (Dict, Text, Text, bool, Text, Text) -> None
     """
     Watch specified packages in the ubuntu archive for transition between
     archive pockets. Useful when waiting for a package update to be published.
@@ -263,7 +206,7 @@ def ubuntu_package_status(ctx, config, logging_level, config_skeleton,
             exit(0)
 
     # Initialise all package version
-    package_status = get_status_for_all_packages(package_config)
+    package_status = get_status_for_all_packages(package_config, package_architecture)
     print_package_status(package_status, output_format)
 
 

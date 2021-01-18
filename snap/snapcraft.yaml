@@ -40,4 +40,8 @@ parts:
       - src/requirements.txt
     source: .
     stage-packages:
+      - python3-venv
       - python3-launchpadlib
+    build-packages:
+      - python3-venv
+

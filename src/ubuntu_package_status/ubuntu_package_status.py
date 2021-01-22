@@ -73,7 +73,7 @@ def print_package_status_summary_csv(package_status):
                     )
 
 @delayed
-def get_status_for_single_package(
+def get_status_for_single_package_by_pocket(
     ubuntu_version, package, pocket, package_architecture
 ):
     package_stats = {
@@ -124,6 +124,25 @@ def get_status_for_single_package(
     return {"pocket": pocket,
             "status": package_stats}
 
+@delayed
+def get_status_for_single_package(
+    ubuntu_version, package, pockets, package_architecture
+):
+    n_jobs = -1
+    single_package_statuses = Parallel(n_jobs=n_jobs)(
+        get_status_for_single_package_by_pocket(ubuntu_version, package, pocket,
+                                      package_architecture)
+        for pocket in pockets
+    )
+    package_status = {}
+    for single_package_status in single_package_statuses:
+        single_package_status_pocket = single_package_status["pocket"]
+        package_status[single_package_status_pocket] = single_package_status["status"]
+
+    return {"package": package,
+            "ubuntu_version": ubuntu_version,
+            "status": package_status}
+
 
 def initialize_package_stats_dict(package_config):
     package_status = dict()
@@ -156,16 +175,19 @@ def initialize_package_stats_dict(package_config):
 def get_status_for_all_packages(package_config, package_architecture="amd64"):
     package_status = initialize_package_stats_dict(package_config)
     for ubuntu_version, packages in package_status.items():
-        for package in packages.keys():
-            n_jobs = -1
-            single_package_statuses = Parallel(n_jobs=n_jobs)(
-                get_status_for_single_package(ubuntu_version, package, pocket, package_architecture)
-                for pocket in ARCHIVE_POCKETS
-            )
-            for single_package_status in single_package_statuses:
-                single_package_status_pocket = single_package_status["pocket"]
-                package_status[ubuntu_version][package][single_package_status_pocket] = single_package_status["status"]
-            #print(package_statuses)
+
+        n_jobs = -1
+        package_statuses = Parallel(n_jobs=n_jobs)(
+            get_status_for_single_package(ubuntu_version, package, ARCHIVE_POCKETS,
+                                          package_architecture)
+            for package in packages.keys()
+        )
+        for single_package in package_statuses:
+            single_package_name = single_package["package"]
+            single_package_ubuntu_version = single_package["ubuntu_version"]
+            single_package_status = single_package["status"]
+            for pocket, pocket_status in single_package_status.items():
+                package_status[single_package_ubuntu_version][single_package_name][pocket] = pocket_status
 
     return package_status
 

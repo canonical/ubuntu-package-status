@@ -8,19 +8,12 @@ import sys
 import yaml
 
 import click
+from joblib import Parallel, delayed
 
 from pkg_resources import resource_filename
 
 from babel.dates import format_datetime
 from launchpadlib.launchpad import Launchpad
-
-# Log in to launchpad annonymously - we use launchpad to find
-# the package publish time
-launchpad = Launchpad.login_anonymously(
-    "ubuntu-package-status", "production", version="devel"
-)
-ubuntu = launchpad.distributions["ubuntu"]
-ubuntu_archive = ubuntu.main_archive
 
 # Which archive pockets are checked
 ARCHIVE_POCKETS = ["Release", "Proposed", "Security", "Updates"]
@@ -79,9 +72,9 @@ def print_package_status_summary_csv(package_status):
                         ]
                     )
 
-
-def get_status_for_single_package(
-    package, series, pocket, package_architecture="amd64"
+@delayed
+def get_status_for_single_package_by_pocket(
+    ubuntu_version, package, pocket, package_architecture
 ):
     package_stats = {
         "full_version": None,
@@ -89,7 +82,16 @@ def get_status_for_single_package(
         "date_published_formatted": None,
     }
     try:
-        lp_series = ubuntu.getSeries(name_or_version=series)
+
+        # Log in to launchpad annonymously - we use launchpad to find
+        # the package publish time
+        launchpad = Launchpad.login_anonymously(
+            "ubuntu-package-status", "production", version="devel"
+        )
+        ubuntu = launchpad.distributions["ubuntu"]
+        ubuntu_archive = ubuntu.main_archive
+
+        lp_series = ubuntu.getSeries(name_or_version=ubuntu_version)
         lp_arch_series = lp_series.getDistroArchSeries(archtag=package_architecture)
 
         package_published_binaries = ubuntu_archive.getPublishedBinaries(
@@ -119,7 +121,27 @@ def get_status_for_single_package(
             "Error querying launchpad API: %s. \n " "We will retry. \n", str(e)
         )
 
-    return package_stats
+    return {"pocket": pocket,
+            "status": package_stats}
+
+@delayed
+def get_status_for_single_package(
+    ubuntu_version, package, pockets, package_architecture
+):
+    n_jobs = -1
+    single_package_statuses = Parallel(n_jobs=n_jobs)(
+        get_status_for_single_package_by_pocket(ubuntu_version, package, pocket,
+                                      package_architecture)
+        for pocket in pockets
+    )
+    package_status = {}
+    for single_package_status in single_package_statuses:
+        single_package_status_pocket = single_package_status["pocket"]
+        package_status[single_package_status_pocket] = single_package_status["status"]
+
+    return {"package": package,
+            "ubuntu_version": ubuntu_version,
+            "status": package_status}
 
 
 def initialize_package_stats_dict(package_config):
@@ -153,17 +175,20 @@ def initialize_package_stats_dict(package_config):
 def get_status_for_all_packages(package_config, package_architecture="amd64"):
     package_status = initialize_package_stats_dict(package_config)
     for ubuntu_version, packages in package_status.items():
-        for package in packages.keys():
-            for pocket in ARCHIVE_POCKETS:
-                logging.info(
-                    "Getting stats for {} {} {}".format(
-                        ubuntu_version, pocket.lower(), package
-                    )
-                )
-                package_stats = get_status_for_single_package(
-                    package, ubuntu_version, pocket, package_architecture
-                )
-                package_status[ubuntu_version][package][pocket] = package_stats
+
+        n_jobs = -1
+        package_statuses = Parallel(n_jobs=n_jobs)(
+            get_status_for_single_package(ubuntu_version, package, ARCHIVE_POCKETS,
+                                          package_architecture)
+            for package in packages.keys()
+        )
+        for single_package in package_statuses:
+            single_package_name = single_package["package"]
+            single_package_ubuntu_version = single_package["ubuntu_version"]
+            single_package_status = single_package["status"]
+            for pocket, pocket_status in single_package_status.items():
+                package_status[single_package_ubuntu_version][single_package_name][pocket] = pocket_status
+
     return package_status
 
 

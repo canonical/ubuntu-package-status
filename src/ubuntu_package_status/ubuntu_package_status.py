@@ -231,7 +231,6 @@ def ubuntu_package_status(
         package_config = yaml.safe_load(config_file)
         if config_skeleton:
             output = yaml.dump(package_config, Dumper=yaml.Dumper)
-            print("# Sample config.")
             print(output)
             exit(0)
 

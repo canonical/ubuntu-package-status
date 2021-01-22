@@ -2,3 +2,4 @@ babel
 click
 pyyaml
 readchar
+joblib

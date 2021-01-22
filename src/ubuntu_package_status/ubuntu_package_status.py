@@ -170,12 +170,12 @@ def cli(ctx):
               default='TXT')
 @click.option('--package-architecture',
               help='The architecture to use when querying package '
-                   'version in the archive. We use this in our rmadison query '
-                   'to query either "source" package or "amd64" package '
+                   'version in the archive. We use this in our Launchpad '
+                   'query to query either "source" package or "amd64" package '
                    'version. Using "amd64" will query the version of the '
-                   'kernel binary package. "source" is a valid value for '
-                   'architecture with rmadison and will query the version of '
-                   'the source package.',
+                   'binary package. "source" is a valid value for '
+                   'architecture with Launchpad and will query the version of '
+                   'the source package. The default is amd64.',
               required=True, default='amd64')
 @click.pass_context
 def ubuntu_package_status(ctx, config, logging_level, config_skeleton,

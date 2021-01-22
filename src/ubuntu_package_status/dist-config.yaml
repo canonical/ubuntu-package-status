@@ -1,7 +1,7 @@
 ubuntu-versions:
   bionic:
     packages:
-      - linux
+      - linux-generic
   focal:
     packages:
-      - linux
+      - linux-generic

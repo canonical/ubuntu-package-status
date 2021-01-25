@@ -32,12 +32,19 @@ apps:
     environment:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
-    command: usr/bin/wrapper
+    command: bin/snapcraft-preload $SNAP/usr/bin/wrapper
     plugs:
       - network
       - home
 
 parts:
+  snapcraft-preload:
+    source: https://github.com/sergiusens/snapcraft-preload.git
+    plugin: cmake
+    build-packages:
+      - gcc-multilib
+      - g++-multilib
+      - lib32stdc++6
   ubuntu-package-status-wrapper:
     plugin: dump
     source: snap/local

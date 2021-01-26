@@ -33,32 +33,12 @@ apps:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
       LANG: "C.UTF-8"
-    command: $SNAP/bin/snapcraft-preload $SNAP/bin/ubuntu-package-status
+    command: $SNAP/bin/ubuntu-package-status
     plugs:
       - network
       - home
 
 parts:
-  snapcraft-preload:
-    source: https://github.com/sergiusens/snapcraft-preload.git
-    plugin: cmake
-    build-packages:
-      - gcc-multilib
-      - g++-multilib
-      - lib32stdc++6
-    stage-packages:
-      - lib32stdc++6
-  ubuntu-package-status-wrapper:
-    plugin: dump
-    source: snap/local
-    override-build: |
-      chmod +x wrapper
-      snapcraftctl build
-    organize:
-      wrapper: usr/bin/wrapper
-    stage:
-      - usr/bin/wrapper
-
   ubuntu-package-status:
     plugin: python
     requirements:

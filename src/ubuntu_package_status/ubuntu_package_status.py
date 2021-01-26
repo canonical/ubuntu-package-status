@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import csv
+import faulthandler
 import json
 import logging
 import os
@@ -17,6 +18,8 @@ from launchpadlib.launchpad import Launchpad
 
 # Which archive pockets are checked
 ARCHIVE_POCKETS = ["Release", "Proposed", "Security", "Updates"]
+
+faulthandler.enable()
 
 
 def print_package_status(package_status, output_format="TXT"):

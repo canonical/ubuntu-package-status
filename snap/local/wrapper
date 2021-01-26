@@ -2,5 +2,6 @@
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
+export PYTHONFAULTHANDLER=1
 
 exec "$SNAP/bin/ubuntu-package-status" "$@"

@@ -45,6 +45,8 @@ parts:
       - gcc-multilib
       - g++-multilib
       - lib32stdc++6
+    stage-packages:
+      - lib32stdc++6
   ubuntu-package-status-wrapper:
     plugin: dump
     source: snap/local

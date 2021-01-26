@@ -33,6 +33,7 @@ apps:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
       LANG: "C.UTF-8"
+      JOBLIB_MULTIPROCESSING: 0
     command: usr/bin/python3 $SNAP/bin/ubuntu-package-status
     plugs:
       - network

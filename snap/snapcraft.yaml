@@ -32,7 +32,8 @@ apps:
     environment:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
-    command: bin/snapcraft-preload $SNAP/usr/bin/wrapper
+      LANG: "C.UTF-8"
+    command: $SNAP/bin/snapcraft-preload $SNAP/bin/ubuntu-package-status
     plugs:
       - network
       - home

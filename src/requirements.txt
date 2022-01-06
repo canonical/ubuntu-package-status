@@ -1,5 +1,7 @@
 babel
 click
+humanize
 pyyaml
+pytz
 readchar
 joblib

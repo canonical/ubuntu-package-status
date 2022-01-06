@@ -9,11 +9,14 @@ import sys
 import yaml
 
 import click
-from joblib import Parallel, delayed
+import humanize
+import pytz
 
+from datetime import datetime, timedelta
 from pkg_resources import resource_filename
 
 from babel.dates import format_datetime
+from joblib import Parallel, delayed
 from launchpadlib.launchpad import Launchpad
 
 # Which archive pockets are checked
@@ -39,11 +42,12 @@ def print_package_status_summary_txt(package_status):
             for pocket, stats in pockets.items():
                 if stats["full_version"]:
                     print(
-                        "\t\t{} {} @ {} ({})".format(
+                        "\t\t{} {} @ {} ({}) - {}".format(
                             pocket,
                             stats["full_version"],
                             stats["date_published"],
                             stats["date_published_formatted"],
+                            stats["published_age"],
                         )
                     )
 
@@ -58,6 +62,9 @@ def print_package_status_summary_csv(package_status):
             "full_version",
             "date_published",
             "date_published_formatted",
+            "published_age",
+            "link",
+            "build_link"
         ]
     )
     for ubuntu_version, package_stats in package_status.items():
@@ -72,6 +79,9 @@ def print_package_status_summary_csv(package_status):
                             stats["full_version"],
                             stats["date_published"],
                             stats["date_published_formatted"],
+                            stats["published_age"],
+                            stats["link"],
+                            stats["build_link"],
                         ]
                     )
 
@@ -81,9 +91,14 @@ def get_status_for_single_package_by_pocket(
 ):
     package_stats = {
         "full_version": None,
+        "version": None,
         "date_published": None,
         "date_published_formatted": None,
+        "published_age": None,
+        "link": None,
+        "build_link": None
     }
+
     try:
 
         # Log in to launchpad annonymously - we use launchpad to find
@@ -111,6 +126,22 @@ def get_status_for_single_package_by_pocket(
             binary_package_version = package_published_binary.binary_package_version
             package_stats["full_version"] = binary_package_version
 
+            version = binary_package_version
+
+            package_stats["link"] = package_published_binary.self_link
+
+            build_link = package_published_binary.build_link.replace('api.', '')\
+                .replace('1.0/', '')\
+                .replace('devel/', '')
+            package_stats["build_link"] = build_link
+
+            # We're really only concerned with the version number up
+            # to the last int if it's not a ~ version
+            if "~" not in binary_package_version:
+                last_version_dot = binary_package_version.find('-')
+                version = binary_package_version[0:last_version_dot]
+            package_stats["version"] = version
+
             package_stats[
                 "date_published"
             ] = package_published_binary.date_published.isoformat()
@@ -118,6 +149,17 @@ def get_status_for_single_package_by_pocket(
                 package_published_binary.date_published
             )
             package_stats["date_published_formatted"] = date_published_formatted
+
+            current_time = pytz.utc.localize(datetime.utcnow())
+            published_age = current_time - package_published_binary.date_published
+            if published_age < timedelta():
+                # A negative timedelta means the time is in the future; this will be
+                # due to inconsistent clocks across systems, so assume that there is no
+                # delta
+                published_age = timedelta()
+            published_age = humanize.naturaltime(published_age)
+
+            package_stats["published_age"] = published_age
 
     except Exception as e:
         logging.error(
@@ -152,8 +194,12 @@ def initialize_package_stats_dict(package_config):
 
     default_package_stats = {
         "full_version": None,
+        "version": None,
         "date_published": None,
         "date_published_formatted": None,
+        "published_age": None,
+        "link": None,
+        "build_link": None
     }
 
     default_package_versions = {

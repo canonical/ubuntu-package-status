@@ -1,5 +1,5 @@
 name: ubuntu-package-status
-version: '0.0.2'
+version: '0.0.3'
 base: core18
 summary: Fetch package version data for specified packages in the Ubuntu archive
 description: |
@@ -27,14 +27,16 @@ description: |
 grade: stable
 confinement: strict
 
+architectures:
+  - build-on: amd64
+
 apps:
   ubuntu-package-status:
     environment:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
       LANG: "C.UTF-8"
-      JOBLIB_MULTIPROCESSING: 0
-    command: usr/bin/python3 $SNAP/bin/ubuntu-package-status
+    command: bin/snapcraft-preload $SNAP/bin/ubuntu-package-status
     plugs:
       - network
       - home
@@ -47,4 +49,12 @@ parts:
     source: .
     stage-packages:
       - python3-launchpadlib
+  snapcraft-preload:
+    source: https://github.com/diddledan/snapcraft-preload.git
+    source-branch: semaphore-support
+    plugin: cmake
+    build-packages:
+      - on amd64:
+        - gcc-multilib
+        - g++-multilib
 

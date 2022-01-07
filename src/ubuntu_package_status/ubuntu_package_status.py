@@ -205,8 +205,6 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     package_status = initialize_package_stats_dict(package_config, package_architectures)
 
     for ubuntu_version, packages in package_status.items():
-        n_jobs = -1
-
         # find all possible combinations of pocket, architecture and package name and create parallel jobs to query
         # launchpad for details on that package arch and pocket
         package_names = packages.keys()

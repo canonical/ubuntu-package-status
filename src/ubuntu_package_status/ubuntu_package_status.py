@@ -9,11 +9,16 @@ import sys
 import yaml
 
 import click
-from joblib import Parallel, delayed
+import humanize
+import pytz
 
+from collections import defaultdict
+from datetime import datetime, timedelta
+from itertools import product
 from pkg_resources import resource_filename
 
 from babel.dates import format_datetime
+from joblib import Parallel, delayed
 from launchpadlib.launchpad import Launchpad
 
 # Which archive pockets are checked
@@ -34,18 +39,21 @@ def print_package_status(package_status, output_format="TXT"):
 def print_package_status_summary_txt(package_status):
     for ubuntu_version, package_stats in package_status.items():
         print(ubuntu_version)
-        for package, pockets in package_stats.items():
+        for package, arches in package_stats.items():
             print("\t{}".format(package))
-            for pocket, stats in pockets.items():
-                if stats["full_version"]:
-                    print(
-                        "\t\t{} {} @ {} ({})".format(
-                            pocket,
-                            stats["full_version"],
-                            stats["date_published"],
-                            stats["date_published_formatted"],
+            for arch, pockets in arches.items():
+                for pocket, stats in pockets.items():
+                    if stats["full_version"]:
+                        print(
+                            "\t\t{} {} {} @ {} ({}) - {}".format(
+                                arch,
+                                pocket,
+                                stats["full_version"],
+                                stats["date_published"],
+                                stats["date_published_formatted"],
+                                stats["published_age"],
+                            )
                         )
-                    )
 
 
 def print_package_status_summary_csv(package_status):
@@ -55,37 +63,49 @@ def print_package_status_summary_csv(package_status):
             "ubuntu_version",
             "package",
             "pocket",
+            "architecture"
             "full_version",
             "date_published",
             "date_published_formatted",
+            "published_age",
+            "link",
+            "build_link"
         ]
     )
     for ubuntu_version, package_stats in package_status.items():
         for package, pockets in package_stats.items():
-            for pocket, stats in pockets.items():
-                if stats["full_version"]:
-                    csv_stdout_writer.writerow(
-                        [
-                            ubuntu_version,
-                            package,
-                            pocket,
-                            stats["full_version"],
-                            stats["date_published"],
-                            stats["date_published_formatted"],
-                        ]
-                    )
+            for pocket, arches in pockets.items():
+                for arch, stats in arches.items():
+                    if stats["full_version"]:
+                        csv_stdout_writer.writerow(
+                            [
+                                ubuntu_version,
+                                package,
+                                pocket,
+                                arch,
+                                stats["full_version"],
+                                stats["date_published"],
+                                stats["date_published_formatted"],
+                                stats["published_age"],
+                                stats["link"],
+                                stats["build_link"],
+                            ]
+                        )
 
 @delayed
-def get_status_for_single_package_by_pocket(
+def get_status_for_single_package_by_pocket_and_architecture(
     ubuntu_version, package, pocket, package_architecture
 ):
     package_stats = {
         "full_version": None,
+        "version": None,
         "date_published": None,
         "date_published_formatted": None,
+        "published_age": None,
+        "link": None,
+        "build_link": None
     }
     try:
-
         # Log in to launchpad annonymously - we use launchpad to find
         # the package publish time
         launchpad = Launchpad.login_anonymously(
@@ -111,6 +131,22 @@ def get_status_for_single_package_by_pocket(
             binary_package_version = package_published_binary.binary_package_version
             package_stats["full_version"] = binary_package_version
 
+            version = binary_package_version
+
+            package_stats["link"] = package_published_binary.self_link
+
+            build_link = package_published_binary.build_link.replace('api.', '')\
+                .replace('1.0/', '')\
+                .replace('devel/', '')
+            package_stats["build_link"] = build_link
+
+            # We're really only concerned with the version number up
+            # to the last int if it's not a ~ version
+            if "~" not in binary_package_version:
+                last_version_dot = binary_package_version.find('-')
+                version = binary_package_version[0:last_version_dot]
+            package_stats["version"] = version
+
             package_stats[
                 "date_published"
             ] = package_published_binary.date_published.isoformat()
@@ -119,49 +155,30 @@ def get_status_for_single_package_by_pocket(
             )
             package_stats["date_published_formatted"] = date_published_formatted
 
+            current_time = pytz.utc.localize(datetime.utcnow())
+            published_age = current_time - package_published_binary.date_published
+            if published_age < timedelta():
+                # A negative timedelta means the time is in the future; this will be
+                # due to inconsistent clocks across systems, so assume that there is no
+                # delta
+                published_age = timedelta()
+            published_age = humanize.naturaltime(published_age)
+
+            package_stats["published_age"] = published_age
+
     except Exception as e:
         logging.error(
             "Error querying launchpad API: %s. \n " "We will retry. \n", str(e)
         )
 
-    return {"pocket": pocket,
+    return {"package": package,
+            "pocket": pocket,
+            "architecture": package_architecture,
             "status": package_stats}
 
-@delayed
-def get_status_for_single_package(
-    ubuntu_version, package, pockets, package_architecture
-):
-    n_jobs = -1
-    single_package_statuses = Parallel(n_jobs=n_jobs)(
-        get_status_for_single_package_by_pocket(ubuntu_version, package, pocket,
-                                      package_architecture)
-        for pocket in pockets
-    )
-    package_status = {}
-    for single_package_status in single_package_statuses:
-        single_package_status_pocket = single_package_status["pocket"]
-        package_status[single_package_status_pocket] = single_package_status["status"]
 
-    return {"package": package,
-            "ubuntu_version": ubuntu_version,
-            "status": package_status}
-
-
-def initialize_package_stats_dict(package_config):
+def initialize_package_stats_dict(package_config, package_architectures=["amd64"]):
     package_status = dict()
-
-    default_package_stats = {
-        "full_version": None,
-        "date_published": None,
-        "date_published_formatted": None,
-    }
-
-    default_package_versions = {
-        "Release": default_package_stats,
-        "Proposed": default_package_stats,
-        "Updates": default_package_stats,
-        "Security": default_package_stats,
-    }
 
     ubuntu_versions = package_config.get("ubuntu-versions", {})
 
@@ -169,28 +186,49 @@ def initialize_package_stats_dict(package_config):
     for ubuntu_version, packages in ubuntu_versions.items():
         package_list = packages.get("packages", [])
         package_status.setdefault(
-            ubuntu_version,
-            {package: default_package_versions.copy() for package in package_list},
+            ubuntu_version, defaultdict(dict)
         )
+        for package in package_list:
+            for pocket in ARCHIVE_POCKETS:
+                package_status[ubuntu_version][package].setdefault(
+                    pocket, defaultdict(dict)
+                )
+                for package_architecture in package_architectures:
+                    package_status[ubuntu_version][package][pocket].setdefault(
+                        package_architecture, defaultdict(dict)
+                    )
+
     return package_status
 
 
-def get_status_for_all_packages(package_config, package_architecture="amd64"):
-    package_status = initialize_package_stats_dict(package_config)
+def get_status_for_all_packages(package_config, package_architectures=["amd64"]):
+    package_status = initialize_package_stats_dict(package_config, package_architectures)
+
     for ubuntu_version, packages in package_status.items():
+        n_jobs = -1
+
+        # find all possible combinations of pocket, architecture and package name and create parallel jobs to query
+        # launchpad for details on that package arch and pocket
+        package_names = packages.keys()
+        pockets = ARCHIVE_POCKETS
+
+        # create a list of tuples of all combinations
+        package_pocket_architecture_combinations = list(product(package_names, pockets, package_architectures))
 
         n_jobs = -1
-        package_statuses = Parallel(n_jobs=n_jobs)(
-            get_status_for_single_package(ubuntu_version, package, ARCHIVE_POCKETS,
-                                          package_architecture)
-            for package in packages.keys()
+        single_package_statuses = Parallel(n_jobs=n_jobs)(
+            get_status_for_single_package_by_pocket_and_architecture(ubuntu_version,
+                                                                     package_name,
+                                                                     package_pocket,
+                                                                     package_architecture)
+            for package_name, package_pocket, package_architecture in package_pocket_architecture_combinations
         )
-        for single_package in package_statuses:
+        for single_package in single_package_statuses:
             single_package_name = single_package["package"]
-            single_package_ubuntu_version = single_package["ubuntu_version"]
+            single_package_pocket = single_package["pocket"]
+            single_package_architecture = single_package["architecture"]
             single_package_status = single_package["status"]
-            for pocket, pocket_status in single_package_status.items():
-                package_status[single_package_ubuntu_version][single_package_name][pocket] = pocket_status
+            package_status[ubuntu_version][single_package_name][single_package_pocket][single_package_architecture] = single_package_status
 
     return package_status
 
@@ -214,28 +252,34 @@ def get_status_for_all_packages(package_config, package_architecture="amd64"):
     required=False,
     default="ERROR",
     help="How detailed would you like the output.",
+    show_default=True
 )
 @click.option(
-    "--config-skeleton", is_flag=True, default=False, help="Print example config."
+    "--config-skeleton", is_flag=True, default=False, help="Print example config.",
+    show_default=True
 )
 @click.option(
-    "--output-format", type=click.Choice(["TXT", "CSV", "JSON"]), default="TXT"
+    "--output-format", type=click.Choice(["TXT", "CSV", "JSON"]), default="TXT",
+    show_default=True
 )
 @click.option(
-    "--package-architecture",
+    "--package-architecture", "package_architectures",
     help="The architecture to use when querying package "
     "version in the archive. We use this in our Launchpad "
     'query to query either "source" package or "amd64" package '
     'version. Using "amd64" will query the version of the '
     'binary package. "source" is a valid value for '
     "architecture with Launchpad and will query the version of "
-    "the source package. The default is amd64.",
+    "the source package. The default is amd64. "
+    "This option can be specified multiple times.",
     required=True,
-    default="amd64",
+    multiple=True,
+    default=["amd64"],
+    show_default=True
 )
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, logging_level, config_skeleton, output_format, package_architecture
+    ctx, config, logging_level, config_skeleton, output_format, package_architectures
 ):
     # type: (Dict, Text, Text, bool, Text, Text) -> None
     """
@@ -263,7 +307,7 @@ def ubuntu_package_status(
             exit(0)
 
     # Initialise all package version
-    package_status = get_status_for_all_packages(package_config, package_architecture)
+    package_status = get_status_for_all_packages(package_config, package_architectures)
     print_package_status(package_status, output_format)
 
 

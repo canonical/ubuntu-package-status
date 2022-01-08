@@ -1,5 +1,5 @@
 name: ubuntu-package-status
-version: '0.0.3'
+version: '0.0.4'
 base: core18
 summary: Fetch package version data for specified packages in the Ubuntu archive
 description: |
@@ -22,7 +22,7 @@ description: |
          --output-format=CSV > "package-stats.csv"
   ```
 
-  This will write the current state of your packages in the archive to a "package-stats.csv" fi
+  This will write the current state of your packages in the archive to a "package-stats.csv" file
 
 grade: stable
 confinement: strict
@@ -47,8 +47,6 @@ parts:
     requirements:
       - src/requirements.txt
     source: .
-    stage-packages:
-      - python3-launchpadlib
   snapcraft-preload:
     source: https://github.com/diddledan/snapcraft-preload.git
     source-branch: semaphore-support

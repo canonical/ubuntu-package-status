@@ -173,6 +173,7 @@ def get_status_for_single_package_by_pocket_and_architecture(
 
     return {"package": package,
             "pocket": pocket,
+            "ubuntu_version": ubuntu_version,
             "architecture": package_architecture,
             "status": package_stats}
 
@@ -202,33 +203,36 @@ def initialize_package_stats_dict(package_config, package_architectures=["amd64"
 
 
 def get_status_for_all_packages(package_config, package_architectures=["amd64"]):
-    package_status = initialize_package_stats_dict(package_config, package_architectures)
-
-    for ubuntu_version, packages in package_status.items():
+    package_statuses = initialize_package_stats_dict(package_config, package_architectures)
+    ubuntu_version_package_pocket_architecture_combinations = []
+    for ubuntu_version, packages in package_statuses.items():
         # find all possible combinations of pocket, architecture and package name and create parallel jobs to query
         # launchpad for details on that package arch and pocket
         package_names = packages.keys()
         pockets = ARCHIVE_POCKETS
 
         # create a list of tuples of all combinations
-        package_pocket_architecture_combinations = list(product(package_names, pockets, package_architectures))
+        possible_combinations = list(product([ubuntu_version], package_names, pockets, package_architectures))
+        ubuntu_version_package_pocket_architecture_combinations.extend(possible_combinations)
 
-        n_jobs = -1
-        single_package_statuses = Parallel(n_jobs=n_jobs)(
-            get_status_for_single_package_by_pocket_and_architecture(ubuntu_version,
-                                                                     package_name,
-                                                                     package_pocket,
-                                                                     package_architecture)
-            for package_name, package_pocket, package_architecture in package_pocket_architecture_combinations
-        )
-        for single_package in single_package_statuses:
-            single_package_name = single_package["package"]
-            single_package_pocket = single_package["pocket"]
-            single_package_architecture = single_package["architecture"]
-            single_package_status = single_package["status"]
-            package_status[ubuntu_version][single_package_name][single_package_pocket][single_package_architecture] = single_package_status
+    n_jobs = -1
+    single_package_statuses = Parallel(n_jobs=n_jobs)(
+        get_status_for_single_package_by_pocket_and_architecture(ubuntu_version_name,
+                                                                 package_name,
+                                                                 package_pocket,
+                                                                 package_architecture)
+        for ubuntu_version_name, package_name, package_pocket, package_architecture in
+        ubuntu_version_package_pocket_architecture_combinations
+    )
+    for single_package in single_package_statuses:
+        package_name = single_package["package"]
+        package_ubuntu_version = single_package["ubuntu_version"]
+        package_pocket = single_package["pocket"]
+        package_architecture = single_package["architecture"]
+        package_status = single_package["status"]
+        package_statuses[package_ubuntu_version][package_name][package_pocket][package_architecture] = package_status
 
-    return package_status
+    return package_statuses
 
 
 @click.command()

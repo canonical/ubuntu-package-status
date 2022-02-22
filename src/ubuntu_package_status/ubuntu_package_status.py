@@ -249,6 +249,12 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     ),
 )
 @click.option(
+    "--series", help='the Ubuntu series eg. "20.04" or "focal"', required=False, default=None
+)
+@click.option(
+    "--package-name", help='Binary package name', required=False, default=None
+)
+@click.option(
     "--logging-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
     required=False,
@@ -281,7 +287,7 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
 )
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, logging_level, config_skeleton, output_format, package_architectures
+    ctx, config, series, package_name, logging_level, config_skeleton, output_format, package_architectures
 ):
     # type: (Dict, Text, Text, bool, Text, Text) -> None
     """
@@ -300,13 +306,25 @@ def ubuntu_package_status(
         level=level, stream=sys.stderr, format="%(asctime)s [%(levelname)s] %(message)s"
     )
 
-    # Parse config
-    with open(config, "r") as config_file:
-        package_config = yaml.safe_load(config_file)
-        if config_skeleton:
-            output = yaml.dump(package_config, Dumper=yaml.Dumper)
-            print(output)
-            exit(0)
+    # was there a config passed in or individual package?
+    if not series and not package_name:
+        # Parse config
+        with open(config, "r") as config_file:
+            package_config = yaml.safe_load(config_file)
+            if config_skeleton:
+                output = yaml.dump(package_config, Dumper=yaml.Dumper)
+                print(output)
+                exit(0)
+    else:
+        package_config = {
+            'ubuntu-versions':
+                {
+                    series:
+                        {
+                            'packages': [package_name]
+                        }
+                }
+        }
 
     # Initialise all package version
     package_status = get_status_for_all_packages(package_config, package_architectures)

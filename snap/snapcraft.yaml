@@ -1,5 +1,5 @@
 name: ubuntu-package-status
-version: '0.0.5'
+version: '0.0.6'
 base: core18
 summary: Fetch package version data for specified packages in the Ubuntu archive
 description: |

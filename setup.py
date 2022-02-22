@@ -11,7 +11,7 @@ with open(reqs_path, 'r') as req_file:
 
 setup(
     name='ubuntu-package-status',
-    version='0.0.5',
+    version='0.0.6',
     install_requires=dependencies,
     url='',
     license='',

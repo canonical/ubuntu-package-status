@@ -45,11 +45,10 @@ def print_package_status_summary_txt(package_status):
                 for pocket, stats in pockets.items():
                     if stats["full_version"]:
                         print(
-                            "\t\t{} {} {} @ {} ({}) - {}".format(
+                            "\t\t{} {} {} @ {} ({})".format(
                                 arch,
                                 pocket,
                                 stats["full_version"],
-                                stats["date_published"],
                                 stats["date_published_formatted"],
                                 stats["published_age"],
                             )

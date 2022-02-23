@@ -251,7 +251,7 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     "--series", help='the Ubuntu series eg. "20.04" or "focal"', required=False, default=None
 )
 @click.option(
-    "--package-name", help='Binary package name', required=False, default=None
+    "--package-name", "package_names", multiple=True, help='Binary package name', required=False, default=[]
 )
 @click.option(
     "--logging-level",
@@ -286,7 +286,7 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
 )
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, series, package_name, logging_level, config_skeleton, output_format, package_architectures
+    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures
 ):
     # type: (Dict, Text, Text, bool, Text, Text) -> None
     """
@@ -306,7 +306,7 @@ def ubuntu_package_status(
     )
 
     # was there a config passed in or individual package?
-    if not series and not package_name:
+    if not series and not package_names:
         # Parse config
         with open(config, "r") as config_file:
             package_config = yaml.safe_load(config_file)
@@ -320,7 +320,7 @@ def ubuntu_package_status(
                 {
                     series:
                         {
-                            'packages': [package_name]
+                            'packages': package_names
                         }
                 }
         }

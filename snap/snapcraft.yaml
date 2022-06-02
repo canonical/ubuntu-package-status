@@ -1,6 +1,6 @@
 name: ubuntu-package-status
-version: '0.0.7'
-base: core18
+version: '0.0.8'
+base: core20
 summary: Fetch package version data for specified packages in the Ubuntu archive
 description: |
   Helpful utility to fetch package version data for specified packages in the Ubuntu archive.
@@ -29,6 +29,7 @@ confinement: strict
 
 architectures:
   - build-on: amd64
+    run-on: amd64
 
 apps:
   ubuntu-package-status:
@@ -36,7 +37,8 @@ apps:
       PATH: "$SNAP/usr/bin:$SNAP/bin/:$PATH"
       LC_ALL: "C.UTF-8"
       LANG: "C.UTF-8"
-    command: bin/snapcraft-preload $SNAP/bin/ubuntu-package-status
+      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$SNAP/lib/python3.8/site-packages/
+    command: usr/bin/snapcraft-preload $SNAP/bin/ubuntu-package-status
     plugs:
       - network
       - home
@@ -47,12 +49,19 @@ parts:
     requirements:
       - src/requirements.txt
     source: .
+    override-build: |
+      snapcraftctl build
+      ln -sf ../usr/lib/libsnapcraft-preload.so $SNAPCRAFT_PART_INSTALL/lib/libsnapcraft-preload.so
   snapcraft-preload:
     source: https://github.com/diddledan/snapcraft-preload.git
     source-branch: semaphore-support
     plugin: cmake
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX=/usr -DLIBPATH=/lib
     build-packages:
       - on amd64:
         - gcc-multilib
         - g++-multilib
-
+    stage-packages:
+      - on amd64:
+        - lib32stdc++6

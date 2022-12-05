@@ -62,6 +62,7 @@ parts:
       - on amd64:
         - gcc-multilib
         - g++-multilib
+        - make
     stage-packages:
       - on amd64:
         - lib32stdc++6

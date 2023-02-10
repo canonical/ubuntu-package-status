@@ -41,13 +41,13 @@ def print_package_status_summary_txt(package_status):
         print(ubuntu_version)
         for package, arches in package_stats.items():
             print("\t{}".format(package))
-            for arch, pockets in arches.items():
-                for pocket, stats in pockets.items():
+            for pocket, pockets in arches.items():
+                for arch, stats in pockets.items():
                     if stats["full_version"]:
                         print(
                             "\t\t{} {} {} @ {} ({})".format(
-                                arch,
                                 pocket,
+                                arch,
                                 stats["full_version"],
                                 stats["date_published_formatted"],
                                 stats["published_age"],

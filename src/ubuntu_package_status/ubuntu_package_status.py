@@ -62,7 +62,7 @@ def print_package_status_summary_csv(package_status):
             "ubuntu_version",
             "package",
             "pocket",
-            "architecture"
+            "architecture",
             "full_version",
             "date_published",
             "date_published_formatted",

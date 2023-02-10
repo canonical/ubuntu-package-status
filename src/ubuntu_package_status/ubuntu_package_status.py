@@ -41,13 +41,14 @@ def print_package_status_summary_txt(package_status):
         print(ubuntu_version)
         for package, arches in package_stats.items():
             print("\t{}".format(package))
-            for arch, pockets in arches.items():
-                for pocket, stats in pockets.items():
+            for pocket, pockets in arches.items():
+                for arch, stats in pockets.items():
                     if stats["full_version"]:
                         print(
-                            "\t\t{} {} {} @ {} ({})".format(
-                                arch,
+                            "\t\t{}/{} {} {} @ {} ({})".format(
                                 pocket,
+                                stats["component"],
+                                arch,
                                 stats["full_version"],
                                 stats["date_published_formatted"],
                                 stats["published_age"],
@@ -62,7 +63,8 @@ def print_package_status_summary_csv(package_status):
             "ubuntu_version",
             "package",
             "pocket",
-            "architecture"
+            "component",
+            "architecture",
             "full_version",
             "date_published",
             "date_published_formatted",
@@ -81,6 +83,7 @@ def print_package_status_summary_csv(package_status):
                                 ubuntu_version,
                                 package,
                                 pocket,
+                                stats["component"],
                                 arch,
                                 stats["full_version"],
                                 stats["date_published"],
@@ -164,6 +167,8 @@ def get_status_for_single_package_by_pocket_and_architecture(
             published_age = humanize.naturaltime(published_age)
 
             package_stats["published_age"] = published_age
+            package_stats["component"] = package_published_binary.component_name
+
 
     except Exception as e:
         logging.error(

@@ -253,7 +253,14 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     ),
 )
 @click.option(
-    "--series", help='the Ubuntu series eg. "20.04" or "focal"', required=False, default=None
+    "--series",
+    "series",
+    multiple=True,
+    help="The Ubuntu series eg. '20.04' or 'focal'."
+    "This option can be specified multiple times.",
+    required=False,
+    default=[],
+
 )
 @click.option(
     "--package-name", "package_names", multiple=True, help='Binary package name', required=False, default=[]
@@ -293,7 +300,7 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
 def ubuntu_package_status(
     ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures
 ):
-    # type: (Dict, Text, Text, bool, Text, Text) -> None
+    # type: (Dict, List[Text], Text, bool, Text, Text) -> None
     """
     Watch specified packages in the ubuntu archive for transition between
     archive pockets. Useful when waiting for a package update to be published.
@@ -320,15 +327,14 @@ def ubuntu_package_status(
                 print(output)
                 exit(0)
     else:
+        # create a dict for each series specified
         package_config = {
-            'ubuntu-versions':
-                {
-                    series:
-                        {
-                            'packages': package_names
-                        }
-                }
+            'ubuntu-versions': {}
         }
+        for individual_series in series:
+            package_config['ubuntu-versions'][individual_series] = {
+                'packages': package_names
+            }
 
     # Initialise all package version
     package_status = get_status_for_all_packages(package_config, package_architectures)

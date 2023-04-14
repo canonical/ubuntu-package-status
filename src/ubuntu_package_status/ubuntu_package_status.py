@@ -116,13 +116,23 @@ def get_status_for_single_package_by_pocket_and_architecture(
         ubuntu = launchpad.distributions["ubuntu"]
         ubuntu_archive = ubuntu.main_archive
 
+        is_pocket_ppa = False
+        if pocket.startswith("ppa:"):
+            is_pocket_ppa = True
+            ppa_owner_and_name = pocket.replace("ppa:", "")
+            ppa_owner, ppa_name = ppa_owner_and_name.split("/")
+            ubuntu_archive = launchpad.people[ppa_owner].getPPAByName(name=ppa_name)
+            archive_pocket = "Release"  # PPAs only have a release pocket
+        else:
+            archive_pocket = pocket
+
         lp_series = ubuntu.getSeries(name_or_version=ubuntu_version)
         lp_arch_series = lp_series.getDistroArchSeries(archtag=package_architecture)
 
         package_published_binaries = ubuntu_archive.getPublishedBinaries(
             exact_match=True,
             binary_name=package,
-            pocket=pocket,
+            pocket=archive_pocket,
             distro_arch_series=lp_arch_series,
             status="Published",
             order_by_date=True,
@@ -182,7 +192,7 @@ def get_status_for_single_package_by_pocket_and_architecture(
             "status": package_stats}
 
 
-def initialize_package_stats_dict(package_config, package_architectures=["amd64"]):
+def initialize_package_stats_dict(package_config, package_architectures=["amd64"], ppas=[]):
     package_status = dict()
 
     ubuntu_versions = package_config.get("ubuntu-versions", {})
@@ -202,19 +212,28 @@ def initialize_package_stats_dict(package_config, package_architectures=["amd64"
                     package_status[ubuntu_version][package][pocket].setdefault(
                         package_architecture, defaultdict(dict)
                     )
+            for ppa in ppas:
+                package_status[ubuntu_version][package].setdefault(
+                    ppa, defaultdict(dict)
+                )
+                for package_architecture in package_architectures:
+                    package_status[ubuntu_version][package][ppa].setdefault(
+                        package_architecture, defaultdict(dict)
+                    )
 
     return package_status
 
 
-def get_status_for_all_packages(package_config, package_architectures=["amd64"]):
-    package_statuses = initialize_package_stats_dict(package_config, package_architectures)
+def get_status_for_all_packages(package_config, package_architectures=["amd64"], ppas=[]):
+    package_statuses = initialize_package_stats_dict(package_config, package_architectures, ppas)
     ubuntu_version_package_pocket_architecture_combinations = []
     for ubuntu_version, packages in package_statuses.items():
         # find all possible combinations of pocket, architecture and package name and create parallel jobs to query
         # launchpad for details on that package arch and pocket
         package_names = packages.keys()
         pockets = ARCHIVE_POCKETS
-
+        if ppas:
+            pockets.extend(ppas)
         # create a list of tuples of all combinations
         possible_combinations = list(product([ubuntu_version], package_names, pockets, package_architectures))
         ubuntu_version_package_pocket_architecture_combinations.extend(possible_combinations)
@@ -263,7 +282,13 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
 
 )
 @click.option(
-    "--package-name", "package_names", multiple=True, help='Binary package name', required=False, default=[]
+    "--package-name",
+    "package_names",
+    multiple=True,
+    help="Binary package name"
+    "This option can be specified multiple times.",
+    required=False,
+    default=[]
 )
 @click.option(
     "--logging-level",
@@ -274,11 +299,16 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     show_default=True
 )
 @click.option(
-    "--config-skeleton", is_flag=True, default=False, help="Print example config.",
+    "--config-skeleton",
+    is_flag=True,
+    default=False,
+    help="Print example config.",
     show_default=True
 )
 @click.option(
-    "--output-format", type=click.Choice(["TXT", "CSV", "JSON"]), default="TXT",
+    "--output-format",
+    type=click.Choice(["TXT", "CSV", "JSON"]),
+    default="TXT",
     show_default=True
 )
 @click.option(
@@ -296,14 +326,26 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"])
     default=["amd64"],
     show_default=True
 )
+@click.option(
+    "--ppa",
+    "ppas",
+    required=False,
+    multiple=True,
+    type=click.STRING,
+    help="Additional PPAs that you wish to query for package version status."
+    "Expected format is "
+    "ppa:'%LAUNCHPAD_USERNAME%/%PPA_NAME%' eg. ppa:philroche/cloud-init"
+    "Multiple --ppa options can be specified",
+    default=[]
+)
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures
+    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures, ppas
 ):
-    # type: (Dict, List[Text], Text, bool, Text, Text) -> None
+    # type: (Dict, List[Text], List[Text], bool, Text, List[Text], List[Text]) -> None
     """
     Watch specified packages in the ubuntu archive for transition between
-    archive pockets. Useful when waiting for a package update to be published.
+    archive pockets/PPAs. Useful when waiting for a package update to be published.
 
     Usage:
     python ubuntu_package_status.py \
@@ -337,7 +379,7 @@ def ubuntu_package_status(
             }
 
     # Initialise all package version
-    package_status = get_status_for_all_packages(package_config, package_architectures)
+    package_status = get_status_for_all_packages(package_config, package_architectures, list(ppas))
     print_package_status(package_status, output_format)
 
 

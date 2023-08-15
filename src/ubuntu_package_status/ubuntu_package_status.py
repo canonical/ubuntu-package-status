@@ -96,7 +96,7 @@ def print_package_status_summary_csv(package_status):
 
 @delayed
 def get_status_for_single_package_by_pocket_and_architecture(
-    ubuntu_version, package, pocket, package_architecture
+    ubuntu_version, package, pocket, package_architecture, lp_user=None
 ):
     package_stats = {
         "full_version": None,
@@ -108,17 +108,21 @@ def get_status_for_single_package_by_pocket_and_architecture(
         "build_link": None
     }
     try:
-        # Log in to launchpad annonymously - we use launchpad to find
-        # the package publish time
-        launchpad = Launchpad.login_anonymously(
-            "ubuntu-package-status", "production", version="devel"
-        )
+        if lp_user:
+            launchpad = Launchpad.login_with(
+                lp_user,
+                'production', version='devel')
+        else:
+            # Log in to launchpad annonymously - we use launchpad to find
+            # the package publish time
+            launchpad = Launchpad.login_anonymously(
+                'ubuntu-package-status',
+                'production', version='devel')
+
         ubuntu = launchpad.distributions["ubuntu"]
         ubuntu_archive = ubuntu.main_archive
 
-        is_pocket_ppa = False
         if pocket.startswith("ppa:"):
-            is_pocket_ppa = True
             ppa_owner_and_name = pocket.replace("ppa:", "")
             ppa_owner, ppa_name = ppa_owner_and_name.split("/")
             ubuntu_archive = launchpad.people[ppa_owner].getPPAByName(name=ppa_name)
@@ -224,7 +228,7 @@ def initialize_package_stats_dict(package_config, package_architectures=["amd64"
     return package_status
 
 
-def get_status_for_all_packages(package_config, package_architectures=["amd64"], ppas=[]):
+def get_status_for_all_packages(package_config, package_architectures=["amd64"], ppas=[], lp_user=None):
     package_statuses = initialize_package_stats_dict(package_config, package_architectures, ppas)
     ubuntu_version_package_pocket_architecture_combinations = []
     for ubuntu_version, packages in package_statuses.items():
@@ -243,7 +247,8 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"],
         get_status_for_single_package_by_pocket_and_architecture(ubuntu_version_name,
                                                                  package_name,
                                                                  package_pocket,
-                                                                 package_architecture)
+                                                                 package_architecture,
+                                                                 lp_user=lp_user)
         for ubuntu_version_name, package_name, package_pocket, package_architecture in
         ubuntu_version_package_pocket_architecture_combinations
     )
@@ -338,11 +343,20 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"],
     "Multiple --ppa options can be specified",
     default=[]
 )
+@click.option(
+    "--launchpad-user",
+    "lp_user",
+    required=False,
+    type=click.STRING,
+    help="Launchpad username to use when querying PPAs. This is important id "
+         "you are querying PPAs that are not public.",
+    default=None
+)
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures, ppas
+    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures, ppas, lp_user
 ):
-    # type: (Dict, List[Text], List[Text], bool, Text, List[Text], List[Text]) -> None
+    # type: (Dict, List[Text], List[Text], bool, Text, List[Text], List[Text], Optional[Text]) -> None
     """
     Watch specified packages in the ubuntu archive for transition between
     archive pockets/PPAs. Useful when waiting for a package update to be published.
@@ -379,7 +393,7 @@ def ubuntu_package_status(
             }
 
     # Initialise all package version
-    package_status = get_status_for_all_packages(package_config, package_architectures, list(ppas))
+    package_status = get_status_for_all_packages(package_config, package_architectures, list(ppas), lp_user)
     print_package_status(package_status, output_format)
 
 

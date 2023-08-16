@@ -20,6 +20,7 @@ from pkg_resources import resource_filename
 from babel.dates import format_datetime
 from joblib import Parallel, delayed
 from launchpadlib.launchpad import Launchpad
+from launchpadlib.uris import service_roots
 
 # Which archive pockets are checked
 ARCHIVE_POCKETS = ["Release", "Proposed", "Security", "Updates"]
@@ -111,13 +112,13 @@ def get_status_for_single_package_by_pocket_and_architecture(
         if lp_user:
             launchpad = Launchpad.login_with(
                 lp_user,
-                'production', version='devel')
+                service_root=service_roots['production'], version='devel')
         else:
             # Log in to launchpad annonymously - we use launchpad to find
             # the package publish time
             launchpad = Launchpad.login_anonymously(
                 'ubuntu-package-status',
-                'production', version='devel')
+                service_root=service_roots['production'], version='devel')
 
         ubuntu = launchpad.distributions["ubuntu"]
         ubuntu_archive = ubuntu.main_archive

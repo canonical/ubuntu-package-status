@@ -19,6 +19,7 @@ from pkg_resources import resource_filename
 
 from babel.dates import format_datetime
 from joblib import Parallel, delayed
+from launchpadlib.credentials import UnencryptedFileCredentialStore
 from launchpadlib.launchpad import Launchpad
 from launchpadlib.uris import service_roots
 
@@ -97,7 +98,7 @@ def print_package_status_summary_csv(package_status):
 
 @delayed
 def get_status_for_single_package_by_pocket_and_architecture(
-    ubuntu_version, package, pocket, package_architecture, lp_user=None
+    ubuntu_version, package, pocket, package_architecture, lp_user=None, lp_credentials_store=None
 ):
     package_stats = {
         "full_version": None,
@@ -109,9 +110,18 @@ def get_status_for_single_package_by_pocket_and_architecture(
         "build_link": None
     }
     try:
+
+
+        if not lp_credentials_store:
+            creds_prefix = os.environ.get("SNAP_USER_COMMON", os.path.expanduser("~"))
+            store = UnencryptedFileCredentialStore(os.path.join(creds_prefix, ".launchpad.credentials"))
+        else:
+            store = UnencryptedFileCredentialStore(lp_credentials_store)
+
         if lp_user:
             launchpad = Launchpad.login_with(
                 lp_user,
+                credential_store=store,
                 service_root=service_roots['production'], version='devel')
         else:
             # Log in to launchpad annonymously - we use launchpad to find
@@ -229,7 +239,11 @@ def initialize_package_stats_dict(package_config, package_architectures=["amd64"
     return package_status
 
 
-def get_status_for_all_packages(package_config, package_architectures=["amd64"], ppas=[], lp_user=None):
+def get_status_for_all_packages(package_config,
+                                package_architectures=["amd64"],
+                                ppas=[],
+                                lp_user=None,
+                                lp_credentials_store=None):
     package_statuses = initialize_package_stats_dict(package_config, package_architectures, ppas)
     ubuntu_version_package_pocket_architecture_combinations = []
     for ubuntu_version, packages in package_statuses.items():
@@ -249,7 +263,8 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"],
                                                                  package_name,
                                                                  package_pocket,
                                                                  package_architecture,
-                                                                 lp_user=lp_user)
+                                                                 lp_user=lp_user,
+                                                                 lp_credentials_store=lp_credentials_store)
         for ubuntu_version_name, package_name, package_pocket, package_architecture in
         ubuntu_version_package_pocket_architecture_combinations
     )
@@ -353,11 +368,20 @@ def get_status_for_all_packages(package_config, package_architectures=["amd64"],
          "you are querying PPAs that are not public.",
     default=None
 )
+@click.option(
+    "--launchpad-credentials-store",
+    "lp_credentials_store",
+    envvar="LP_CREDENTIALS_STORE",
+    required=False,
+    help="An optional path to an already configured launchpad credentials store.",
+    default=None,
+)
 @click.pass_context
 def ubuntu_package_status(
-    ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures, ppas, lp_user
+        ctx, config, series, package_names, logging_level, config_skeleton, output_format, package_architectures, ppas,
+        lp_user, lp_credentials_store
 ):
-    # type: (Dict, List[Text], List[Text], bool, Text, List[Text], List[Text], Optional[Text]) -> None
+    # type: (Dict, List[Text], List[Text], bool, Text, List[Text], List[Text], Optional[Text], Optional[Text]) -> None
     """
     Watch specified packages in the ubuntu archive for transition between
     archive pockets/PPAs. Useful when waiting for a package update to be published.
@@ -394,7 +418,11 @@ def ubuntu_package_status(
             }
 
     # Initialise all package version
-    package_status = get_status_for_all_packages(package_config, package_architectures, list(ppas), lp_user)
+    package_status = get_status_for_all_packages(package_config,
+                                                 package_architectures,
+                                                 list(ppas),
+                                                 lp_user,
+                                                 lp_credentials_store)
     print_package_status(package_status, output_format)
 
 

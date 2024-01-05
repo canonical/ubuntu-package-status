@@ -142,58 +142,35 @@ def get_status_for_single_package_by_pocket_and_architecture(
             archive_pocket = pocket
 
         lp_series = ubuntu.getSeries(name_or_version=ubuntu_version)
-        lp_arch_series = lp_series.getDistroArchSeries(archtag=package_architecture)
 
-        package_published_binaries = ubuntu_archive.getPublishedBinaries(
-            exact_match=True,
-            binary_name=package,
-            pocket=archive_pocket,
-            distro_arch_series=lp_arch_series,
-            status="Published",
-            order_by_date=True,
-        )
+        if package_architecture != "source":
+            lp_arch_series = lp_series.getDistroArchSeries(archtag=package_architecture)
 
-        if len(package_published_binaries) > 0:
-            package_published_binary = package_published_binaries[0]
-            binary_package_version = package_published_binary.binary_package_version
-            package_stats["full_version"] = binary_package_version
-
-            version = binary_package_version
-
-            package_stats["link"] = package_published_binary.self_link
-
-            build_link = package_published_binary.build_link.replace('api.', '')\
-                .replace('1.0/', '')\
-                .replace('devel/', '')
-            package_stats["build_link"] = build_link
-
-            # We're really only concerned with the version number up
-            # to the last int if it's not a ~ version
-            if "~" not in binary_package_version:
-                last_version_dot = binary_package_version.find('-')
-                version = binary_package_version[0:last_version_dot]
-            package_stats["version"] = version
-
-            package_stats[
-                "date_published"
-            ] = package_published_binary.date_published.isoformat()
-            date_published_formatted = format_datetime(
-                package_published_binary.date_published
+            package_published_binaries = ubuntu_archive.getPublishedBinaries(
+                exact_match=True,
+                binary_name=package,
+                pocket=archive_pocket,
+                distro_arch_series=lp_arch_series,
+                status="Published",
+                order_by_date=True,
             )
-            package_stats["date_published_formatted"] = date_published_formatted
 
-            current_time = pytz.utc.localize(datetime.utcnow())
-            published_age = current_time - package_published_binary.date_published
-            if published_age < timedelta():
-                # A negative timedelta means the time is in the future; this will be
-                # due to inconsistent clocks across systems, so assume that there is no
-                # delta
-                published_age = timedelta()
-            published_age = humanize.naturaltime(published_age)
-
-            package_stats["published_age"] = published_age
-            package_stats["component"] = package_published_binary.component_name
-
+            if len(package_published_binaries) > 0:
+                package_published_binary = package_published_binaries[0]
+                binary_package_version = package_published_binary.binary_package_version
+                gather_package_stats(binary_package_version, package_published_binary, package_stats)
+        else:
+            package_published_sources = ubuntu_archive.getPublishedSources(
+                exact_match=True,
+                source_name=package,
+                pocket=archive_pocket,
+                distro_series=lp_series,
+                status="Published",
+                order_by_date=True)
+            if len(package_published_sources) > 0:
+                package_published_source = package_published_sources[0]
+                source_package_version = package_published_source.source_package_version
+                gather_package_stats(source_package_version, package_published_source, package_stats)
 
     except Exception as e:
         logging.error(
@@ -205,6 +182,43 @@ def get_status_for_single_package_by_pocket_and_architecture(
             "ubuntu_version": ubuntu_version,
             "architecture": package_architecture,
             "status": package_stats}
+
+
+def gather_package_stats(package_version, package_published, package_stats):
+    package_stats["full_version"] = package_version
+    version = package_version
+    package_stats["link"] = package_published.self_link
+    try:
+        build_link = package_published.build_link.replace('api.', '') \
+            .replace('1.0/', '') \
+            .replace('devel/', '')
+        package_stats["build_link"] = build_link
+    except AttributeError as ex:
+        # a build link is not available for source packages so if it doesn't exist we can continue
+        pass
+    # We're really only concerned with the version number up
+    # to the last int if it's not a ~ version
+    if "~" not in package_version:
+        last_version_dot = package_version.find('-')
+        version = package_version[0:last_version_dot]
+    package_stats["version"] = version
+    package_stats[
+        "date_published"
+    ] = package_published.date_published.isoformat()
+    date_published_formatted = format_datetime(
+        package_published.date_published
+    )
+    package_stats["date_published_formatted"] = date_published_formatted
+    current_time = pytz.utc.localize(datetime.utcnow())
+    published_age = current_time - package_published.date_published
+    if published_age < timedelta():
+        # A negative timedelta means the time is in the future; this will be
+        # due to inconsistent clocks across systems, so assume that there is no
+        # delta
+        published_age = timedelta()
+    published_age = humanize.naturaltime(published_age)
+    package_stats["published_age"] = published_age
+    package_stats["component"] = package_published.component_name
 
 
 def initialize_package_stats_dict(package_config, package_architectures=["amd64"], ppas=[]):

@@ -14,6 +14,7 @@ import pytz
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+from debian.debian_support import Version
 from itertools import product
 from pkg_resources import resource_filename
 
@@ -103,6 +104,9 @@ def get_status_for_single_package_by_pocket_and_architecture(
     package_stats = {
         "full_version": None,
         "version": None,
+        "upstream_version": None,
+        "epoch": None,
+        "debian_revision": None,
         "date_published": None,
         "date_published_formatted": None,
         "published_age": None,
@@ -185,8 +189,12 @@ def get_status_for_single_package_by_pocket_and_architecture(
 
 
 def gather_package_stats(package_version, package_published, package_stats):
-    package_stats["full_version"] = package_version
-    version = package_version
+    package_version_obj = Version(package_version)
+    package_stats["full_version"] = package_version_obj.full_version
+    package_stats["version"] = package_version_obj.full_version  # "version" is an alias for "full_version"
+    package_stats["upstream_version"] = package_version_obj.upstream_version
+    package_stats["epoch"] = package_version_obj.epoch
+    package_stats["debian_revision"] = package_version_obj.debian_revision
     package_stats["link"] = package_published.self_link
     try:
         build_link = package_published.build_link.replace('api.', '') \
@@ -196,12 +204,7 @@ def gather_package_stats(package_version, package_published, package_stats):
     except AttributeError as ex:
         # a build link is not available for source packages so if it doesn't exist we can continue
         pass
-    # We're really only concerned with the version number up
-    # to the last int if it's not a ~ version
-    if "~" not in package_version:
-        last_version_dot = package_version.find('-')
-        version = package_version[0:last_version_dot]
-    package_stats["version"] = version
+
     package_stats[
         "date_published"
     ] = package_published.date_published.isoformat()

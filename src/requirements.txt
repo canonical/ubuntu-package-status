@@ -7,3 +7,4 @@ pyyaml
 pytz
 readchar
 joblib
+python-debian

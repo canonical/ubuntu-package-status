@@ -16,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from debian.debian_support import Version
 from itertools import product
-from pkg_resources import resource_filename
+from importlib.resources import files
 
 from babel.dates import format_datetime
 from joblib import Parallel, delayed
@@ -300,7 +300,7 @@ def get_status_for_all_packages(package_config,
 @click.option(
     "--config",
     required=False,
-    default=resource_filename("ubuntu_package_status", "dist-config.yaml"),
+    default=str(files("ubuntu_package_status") / "dist-config.yaml"),
     help="Config yaml specifying which packages ubuntu versions to watch."
     "{}".format(
         " When using the ubuntu-package-status snap this"
